@@ -91,12 +91,14 @@ def multi_do(func, files, *, step, of, processes=16):
         for (i, f), result in zip(enumerate(files), p.imap(func, files, processes)):
             if type(result) is Error:
                 ERRORS.append(result.error_message)
-                continue
+                info[func.__name__][f] = None
+            else:
+                info[func.__name__][f] = result
 
             update_progress(
                 f"{func.__name__}: {i} of {num_files}", i / num_files, step, of
             )
-            info[func.__name__][f] = result
+
     print(f"DONE: {func.__name__}, {time.time() - start: 0.2f} sec")
     update_progress(
         f"{func.__name__}: {num_files} of {num_files}", 1, step, of, force=True
@@ -181,7 +183,12 @@ def timestamp(path):
                 return Error(f"Failed to parse {time_str} for {path}")
 
     if not datetimes:
-        return info["exif"][path]["File"]["FileModifyDate"][:-6]
+        # file modification date is 'YYYY:MM:DD HH:MM:SSpZZ:ZZ', which has length 26
+        modify_date = info["exif"][path]["File"]["FileModifyDate"]
+        if len(modify_date) != 25:
+            return Error(f"Bad FileModifyDate {modify_date} for {path}")
+
+        return modify_date[:-6] + ".000000"
 
     min_datetime = min(datetimes)
     microsecond = min_datetime.microsecond
@@ -216,6 +223,9 @@ CONVERT_FORMATS = {
 
 
 def convert(path):
+    if not should_import(path):
+        return
+
     filetype = info["exif"][path]["File"]["FileType"]
     guid = info["guid"][path]
     timestamp = info["timestamp"][path]
@@ -230,6 +240,20 @@ def convert(path):
 
 def thumb(path):
     pass
+
+
+def should_import(src):
+    src_guid = info["guid"][src]
+    src_kind = info["kind"][src]
+    src_timestamp = info["timestamp"][src]
+
+    return None not in (src_guid, src_kind, src_timestamp)
+
+
+def set_utime(src, timestamp_str):
+    datetime_obj = datetime.datetime.strptime(timestamp_str, "%Y:%m:%d %H:%M:%S.%f")
+    unix_time = time.mktime(datetime_obj.timetuple())
+    os.utime(src, (unix_time, unix_time))
 
 
 def main():
@@ -247,9 +271,9 @@ def main():
     update_progress(f"exif: gathering data")
     exif(files)
 
-    multi_do(kind, files, step=1, of=7)
-    multi_do(guid, files, step=2, of=7)
-    multi_do(timestamp, files, step=3, of=7)
+    multi_do(timestamp, files, step=1, of=7)
+    multi_do(kind, files, step=2, of=7)
+    multi_do(guid, files, step=3, of=7)
     multi_do(burst_id, files, step=4, of=7)
     multi_do(content_id, files, step=5, of=7)
     multi_do(convert, files, processes=1, step=6, of=7)
@@ -262,12 +286,12 @@ def main():
     }
 
     for src, dst in info["convert"].items():
-        src_guid = info["guid"][src]
-        src_kind = info["kind"][src]
-
-        if None in (src_guid, src_kind, dst):
+        if dst is None or not should_import(src):
             continue
 
+        src_guid = info["guid"][src]
+        src_kind = info["kind"][src]
+        src_timestamp = info["timestamp"][src]
         src_burst_id = info["burst_id"][src]
         src_content_id = info["content_id"][src]
 
@@ -275,7 +299,7 @@ def main():
 
         media["items"][src_guid] = {
             "filename": dst,
-            "timestamp": info["timestamp"][src],
+            "timestamp": src_timestamp,
             "burst_id": src_burst_id,
             "content_id": src_content_id,
         }
@@ -285,6 +309,8 @@ def main():
 
         if src_content_id:
             media["content_id"].setdefault(src_content_id, {})[src_kind] = src_guid
+
+        set_utime(src, src_timestamp)
 
     write_status(
         ongoing=False,
