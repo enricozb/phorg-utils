@@ -6,11 +6,13 @@ import json
 import multiprocessing
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import time
 import uuid
 
+SOCKET = None
 CONFIG_DIR = os.environ.get(
     "XDG_CONFIG_HOME", os.path.join(os.environ["HOME"], ".config/")
 )
@@ -23,18 +25,15 @@ class Error:
     error_message: str
 
 
-def check_not_currently_importing():
-    if os.path.exists(IMPORT_STATUS_PATH):
-        with open(IMPORT_STATUS_PATH) as status_file:
-            status = json.load(status_file)
-            assert not status["ongoing"]
-
-    write_status(ongoing=True, percentage=0, message="", media=[])
+def connect_socket():
+    global SOCKET
+    SOCKET = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    SOCKET.connect("/tmp/phorg_import.sock")
 
 
 def write_status(ongoing, percentage, message, media, errors=False):
-    with open(IMPORT_STATUS_PATH, "w") as status_file:
-        json.dump(
+    SOCKET.send(
+        json.dumps(
             {
                 "ongoing": ongoing,
                 "percentage": percentage,
@@ -42,12 +41,13 @@ def write_status(ongoing, percentage, message, media, errors=False):
                 "errors": ERRORS if errors else [],
                 "media": media,
             },
-            status_file,
-            indent=4,
-        )
+        ).encode()
+    )
+    SOCKET.send(b"\n")
 
 
 def copy(src, dst):
+    return
     shutil.copyfile(src, dst, follow_symlinks=False)
     shutil.copymode(src, dst, follow_symlinks=False)
     shutil.copystat(src, dst, follow_symlinks=False)
@@ -232,7 +232,9 @@ def thumb(path):
 
 
 def main():
-    check_not_currently_importing()
+    connect_socket()
+    write_status(ongoing=True, percentage=0, message="", media=[])
+
     files = get_files()
     if not os.path.isabs(sys.argv[2]):
         raise ValueError("Destination directory must be absolute")
@@ -284,6 +286,8 @@ def main():
             media["content_id"].setdefault(src_content_id, {})[src_kind] = src_guid
 
     write_status(ongoing=False, percentage=1, message="", media=media, errors=True)
+
+    SOCKET.close()
 
 
 if __name__ == "__main__":
