@@ -105,6 +105,14 @@ def multi_do(func, files, *, step, of, processes=16):
     )
 
 
+def check_dupe_guids():
+    info["guid_dupe"] = {}
+    for path, path_guid in info["guid"].items():
+        info["guid_dupe"][path_guid] = path_guid in info["guid_dupe"]
+        if info["guid_dupe"][path_guid]:
+            ERRORS.append(f"Duplicate guid {path}")
+
+
 search_memo = {}
 
 
@@ -247,7 +255,10 @@ def should_import(src):
     src_kind = info["kind"][src]
     src_timestamp = info["timestamp"][src]
 
-    return None not in (src_guid, src_kind, src_timestamp)
+    if None in (src_guid, src_kind, src_timestamp) or info["guid_dupe"][src_guid]:
+        return False
+
+    return True
 
 
 def set_utime(src, timestamp_str):
@@ -276,6 +287,9 @@ def main():
     multi_do(guid, files, step=3, of=7)
     multi_do(burst_id, files, step=4, of=7)
     multi_do(content_id, files, step=5, of=7)
+
+    check_dupe_guids()
+
     multi_do(convert, files, processes=1, step=6, of=7)
     multi_do(thumb, files, processes=8, step=7, of=7)
 
@@ -295,9 +309,12 @@ def main():
         src_burst_id = info["burst_id"][src]
         src_content_id = info["content_id"][src]
 
-        assert src_guid not in media["items"]
+        if src_guid in media["items"]:
+            print(src, media["items"][src_guid]["original"])
+            assert False
 
         media["items"][src_guid] = {
+            "original": src,
             "filename": dst,
             "timestamp": src_timestamp,
             "burst_id": src_burst_id,
