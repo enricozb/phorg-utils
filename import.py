@@ -31,11 +31,12 @@ def connect_socket():
     SOCKET.connect("/tmp/phorg_import.sock")
 
 
-def write_status(ongoing, percentage, message, media, errors=False):
+def write_status(ongoing, percentage, message, media, complete=False, errors=False):
     SOCKET.send(
         json.dumps(
             {
                 "ongoing": ongoing,
+                "complete": complete,
                 "percentage": percentage,
                 "message": message,
                 "errors": ERRORS if errors else [],
@@ -285,7 +286,14 @@ def main():
         if src_content_id:
             media["content_id"].setdefault(src_content_id, {})[src_kind] = src_guid
 
-    write_status(ongoing=False, percentage=1, message="", media=media, errors=True)
+    write_status(
+        ongoing=False,
+        percentage=1,
+        message="Done!",
+        media=media,
+        complete=True,
+        errors=True,
+    )
 
     SOCKET.close()
 
