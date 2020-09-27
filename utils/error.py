@@ -1,0 +1,2 @@
+class PhorgError(Exception):
+    pass
