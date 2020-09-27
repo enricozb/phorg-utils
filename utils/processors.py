@@ -114,7 +114,6 @@ def convert(
     },
 ):
     def copy(src, dst):
-        return
         shutil.copyfile(src, dst, follow_symlinks=False)
         shutil.copymode(src, dst, follow_symlinks=False)
         shutil.copystat(src, dst, follow_symlinks=False)
@@ -142,21 +141,30 @@ def thumb(path, results):
 
 
 def set_utime(path, results):
-    if results["convert"][path] is None:
+    dest_path = results["convert"].get(path)
+    if dest_path is None:
         return
 
     path_time = results["timestamp"][path]
     dt = datetime.datetime.strptime(path_time, "%Y:%m:%d %H:%M:%S.%f")
     unix_time = time.mktime(dt.timetuple())
     os.utime(path, (unix_time, unix_time))
+    os.utime(os.path.join(results["dest_dir"], dest_path), (unix_time, unix_time))
 
 
 def set_guid(path, results):
-    if results["convert"][path] is None:
+    dest_path = results["convert"].get(path)
+    if dest_path is None:
         return
 
     subprocess.run(
-        ["exiftool", path, f"-ImageUniqueID={results['guid'][path]}"],
+        [
+            "exiftool",
+            "-overwrite_original",
+            path,
+            os.path.join(results["dest_dir"], dest_path),
+            f"-ImageUniqueID={results['guid'][path]}",
+        ],
         check=True,
         stdout=subprocess.PIPE,
     )
