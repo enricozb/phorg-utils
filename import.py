@@ -1,5 +1,6 @@
 #! /usr/bin/python
 
+import json
 import os
 import sys
 
@@ -9,24 +10,47 @@ import utils.processors as processors
 import utils.status as status
 
 
-def get_paths():
-    with open(sys.argv[1]) as media_files:
+def get_paths(paths_file):
+    with open(paths_file) as media_files:
         return [f.strip() for f in media_files if f.strip()]
 
 
+def get_existing_guids(lib_path):
+    with open(os.path.join(lib_path, "phorg-lib.json")) as lib_file:
+        return set(json.load(lib_file)["media"]["items"].keys())
+
+
+def parse_library_path(lib_path):
+    """
+    Returns the set of existing media guids and the destination directory for media.
+    """
+    return get_existing_guids(lib_path), os.path.join(lib_path, "media")
+
+
 def main():
+    if len(sys.argv) != 3:
+        print("Incorrect number of arguments")
+        exit(1)
+
     status_connection = status.Connection("/tmp/phorg_import.sock")
     status_connection.start()
 
-    paths = get_paths()
-    dest_dir = sys.argv[2]
+    print("running with:", sys.argv)
+
+    paths = get_paths(sys.argv[1])
+    existing_guids, dest_dir = parse_library_path(sys.argv[2])
+
     if not os.path.isabs(dest_dir):
         raise ValueError("Destination directory must be absolute")
 
     status_connection.message("exif: gathering data")
     import_pipeline = pipeline.Pipeline(
         paths=paths,
-        results={"exif": exif.exif(paths), "dest_dir": dest_dir},
+        results={
+            "exif": exif.exif(paths),
+            "existing_guids": existing_guids,
+            "dest_dir": dest_dir,
+        },
         procs=16,
         progress_callback=status_connection.progress,
     )
@@ -67,7 +91,6 @@ def main():
             assert False
 
         media["items"][src_guid] = {
-            "original": src,
             "filename": dst,
             "timestamp": src_timestamp,
             "burst_id": src_burst_id,

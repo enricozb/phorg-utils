@@ -21,8 +21,12 @@ def guid(path, results):
     guid = exif.search(results["exif"][path], "ImageUniqueID")
 
     try:
+        guid = guid.lower()
         uuid.UUID(guid, version=4)
-        return guid.lower()
+        if guid in results["existing_guids"]:
+            raise PhorgError(f"Already imported {path}")
+
+        return guid
     except (TypeError, ValueError):
         pass
 
@@ -88,11 +92,14 @@ def content_id(path, results):
 def dupe_guid(results, errors):
     guid_to_paths = {}
     for path, path_guid in results["guid"].items():
+        if path_guid is None:
+            continue
+
         guid_to_paths.setdefault(path_guid, []).append(path)
 
     for path_guid, paths in guid_to_paths.items():
         if len(paths) > 1:
-            errors.append(f"Duplicate guids: {paths}")
+            errors.append(f"Duplicate guids({path_guid}): {paths}")
             for path in paths:
                 results["guid"][path] = None
 
