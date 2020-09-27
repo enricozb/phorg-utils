@@ -1,9 +1,7 @@
 #! /usr/bin/python
 
-import datetime
 import os
 import sys
-import time
 
 import utils.exif as exif
 import utils.pipeline as pipeline
@@ -14,20 +12,6 @@ import utils.status as status
 def get_paths():
     with open(sys.argv[1]) as media_files:
         return [f.strip() for f in media_files if f.strip()]
-
-
-def set_utime(src, timestamp_str):
-    datetime_obj = datetime.datetime.strptime(timestamp_str, "%Y:%m:%d %H:%M:%S.%f")
-    unix_time = time.mktime(datetime_obj.timetuple())
-    os.utime(src, (unix_time, unix_time))
-
-
-def set_guid(path, path_guid):
-    subprocess.run(
-        ["exiftool", path, f"-ImageUniqueID={path_guid}"],
-        check=True,
-        stdout=subprocess.PIPE,
-    )
 
 
 def main():
@@ -55,6 +39,8 @@ def main():
     import_pipeline.results_do(processors.dupe_guid)
     import_pipeline.par_do(processors.convert, procs=1)
     import_pipeline.par_do(processors.thumb, procs=1)
+    import_pipeline.par_do(processors.set_guid, procs=8)
+    import_pipeline.par_do(processors.set_utime)
 
     import_pipeline.run()
 
@@ -93,9 +79,6 @@ def main():
 
         if src_content_id:
             media["content_id"].setdefault(src_content_id, {})[src_kind] = src_guid
-
-        set_utime(src, src_timestamp)
-        set_guid(src, src_guid)
 
     status_connection.finish(media, import_pipeline.errors)
 

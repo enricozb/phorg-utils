@@ -44,7 +44,7 @@ class Pipeline:
             self.errors.append(str(res))
             self.results[func_name][path] = None
         elif isinstance(res, Exception):
-            self.errors.append(f"UNEXPECTED: {res}")
+            self.errors.append(f"ERR({func_name}) for {path}: {res}")
             self.results[func_name][path] = None
         else:
             self.results[func_name][path] = res
@@ -76,6 +76,11 @@ class Pipeline:
 
         for (func_i, func_name, func, procs) in self.funcs:
             func_start = time.time()
+
+            self.progress_callback(
+                percentage=func_i / len(self.funcs),
+                message=f"{func_name}: starting",
+            )
 
             if procs == 0:
                 func(self.results, self.errors)

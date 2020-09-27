@@ -1,6 +1,9 @@
+import datetime
 import json
+import os
 import shutil
 import subprocess
+import time
 import uuid
 
 import utils.exif as exif
@@ -11,6 +14,7 @@ def kind(path, results):
     path_kind = results["exif"][path]["File"]["MIMEType"].split("/")[0]
     if path_kind not in ("image", "video"):
         raise PhorgError(f"Invalid kind {kind} for {path}")
+    return path_kind
 
 
 def guid(path, results):
@@ -112,6 +116,7 @@ def convert(
     path_guid = results["guid"][path]
     path_kind = results["kind"][path]
     path_time = results["timestamp"][path]
+
     if None in (path_guid, path_kind, path_time):
         # no error because each of guid/kind/time already produce errors
         return
@@ -127,3 +132,21 @@ def convert(
 
 def thumb(path, results):
     pass
+
+
+def set_utime(path, results):
+    if results["convert"][path] is None:
+        return
+
+    path_time = results["timestamp"][path]
+    dt = datetime.datetime.strptime(path_time, "%Y:%m:%d %H:%M:%S.%f")
+    unix_time = time.mktime(dt.timetuple())
+    os.utime(path, (unix_time, unix_time))
+
+
+def set_guid(path, results):
+    subprocess.run(
+        ["exiftool", path, f"-ImageUniqueID={results['guid'][path]}"],
+        check=True,
+        stdout=subprocess.PIPE,
+    )
