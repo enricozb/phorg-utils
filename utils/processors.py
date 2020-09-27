@@ -145,6 +145,9 @@ def set_utime(path, results):
 
 
 def set_guid(path, results):
+    if results["convert"][path] is None:
+        return
+
     subprocess.run(
         ["exiftool", path, f"-ImageUniqueID={results['guid'][path]}"],
         check=True,
