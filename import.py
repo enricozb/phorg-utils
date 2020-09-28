@@ -67,7 +67,7 @@ def main():
     import_pipeline.par_do(processors.content_id)
     import_pipeline.results_do(processors.dupe_guid)
     import_pipeline.par_do(processors.convert, procs=1)
-    import_pipeline.par_do(processors.thumb, procs=1)
+    import_pipeline.par_do(processors.thumb)
     import_pipeline.par_do(processors.set_guid, procs=8)
     import_pipeline.par_do(processors.set_utime)
 

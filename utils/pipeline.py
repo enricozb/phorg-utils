@@ -50,7 +50,11 @@ class Pipeline:
             self.results[func_name][path] = res
 
         self.progress_callback(
-            percentage=func_i * path_i / (len(self.funcs) * len(self.paths)),
+            # this is a + b * t where:
+            #   t = path_i / len(self.paths) ranging from [0, 1]:
+            #   a = (func_i - 1) / len(self.funcs)
+            #   b = func_i / len(self.funcs)
+            percentage=(func_i - 1 + path_i / len(self.paths)) / len(self.funcs),
             message=f"{func_name}: {path_i} of {len(self.paths)}",
         )
 
