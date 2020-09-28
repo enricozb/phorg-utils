@@ -132,37 +132,73 @@ def convert(
         return Error(f"Unknown input format {path_filetype} for file {path}")
 
     filename = f"{path_time}::{path_guid}.{formats[path_filetype]}"
-    copy(path, os.path.join(results["dest_dir"], filename))
+    copy(path, os.path.join(results["media_dir"], filename))
     return filename
 
 
-def thumb(path, results):
-    pass
+def did_convert(path, results):
+    return results["convert"].get(path) is not None
+
+
+def thumb(path, results, max_width=128, max_height=128):
+    if not did_convert(path, results):
+        return
+
+    path_filetype = results["exif"][path]["File"]["FileType"]
+
+    if path_filetype not in ("JPEG", "PNG"):
+        return
+
+    width = exif.search(results["exif"][path], "ImageWidth")
+    height = exif.search(results["exif"][path], "ImageHeight")
+
+    # convert myfigure.png -resize 200x100 myfigure.jpg
+    if width >= height:
+        height = int(round(128 * height / width))
+        height += height % 8
+        width = 128
+
+    else:
+        width = int(round(128 * width / height))
+        width += width % 8
+        height = 128
+
+    subprocess.run(
+        [
+            "convert",
+            os.path.join(results["media_dir"], results["convert"][path]),
+            "-resize",
+            f"{width}x{height}",
+            os.path.join(results["thumb_dir"], f"{results['guid'][path]}.jpg"),
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+    )
 
 
 def set_utime(path, results):
-    dest_path = results["convert"].get(path)
-    if dest_path is None:
+    if not did_convert(path, results):
         return
+    dest_path = results["convert"][path]
 
     path_time = results["timestamp"][path]
     dt = datetime.datetime.strptime(path_time, "%Y:%m:%d %H:%M:%S.%f")
     unix_time = time.mktime(dt.timetuple())
     os.utime(path, (unix_time, unix_time))
-    os.utime(os.path.join(results["dest_dir"], dest_path), (unix_time, unix_time))
+    os.utime(os.path.join(results["media_dir"], dest_path), (unix_time, unix_time))
 
 
 def set_guid(path, results):
-    dest_path = results["convert"].get(path)
-    if dest_path is None:
+    if not did_convert(path, results):
         return
+    dest_path = results["convert"][path]
 
     subprocess.run(
         [
             "exiftool",
             "-overwrite_original",
             path,
-            os.path.join(results["dest_dir"], dest_path),
+            os.path.join(results["media_dir"], dest_path),
             f"-ImageUniqueID={results['guid'][path]}",
         ],
         check=True,

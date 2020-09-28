@@ -24,7 +24,11 @@ def parse_library_path(lib_path):
     """
     Returns the set of existing media guids and the destination directory for media.
     """
-    return get_existing_guids(lib_path), os.path.join(lib_path, "media")
+    return (
+        get_existing_guids(lib_path),
+        os.path.join(lib_path, "media"),
+        os.path.join(lib_path, "thumb"),
+    )
 
 
 def main():
@@ -37,11 +41,11 @@ def main():
 
     print("running with:", sys.argv)
 
-    paths = get_paths(sys.argv[1])
-    existing_guids, dest_dir = parse_library_path(sys.argv[2])
+    if not os.path.isabs(sys.argv[2]):
+        raise ValueError("Library path must be absolute")
 
-    if not os.path.isabs(dest_dir):
-        raise ValueError("Destination directory must be absolute")
+    paths = get_paths(sys.argv[1])
+    existing_guids, media_dir, thumb_dir = parse_library_path(sys.argv[2])
 
     status_connection.message("exif: gathering data")
     import_pipeline = pipeline.Pipeline(
@@ -49,7 +53,8 @@ def main():
         results={
             "exif": exif.exif(paths),
             "existing_guids": existing_guids,
-            "dest_dir": dest_dir,
+            "media_dir": media_dir,
+            "thumb_dir": thumb_dir,
         },
         procs=16,
         progress_callback=status_connection.progress,
