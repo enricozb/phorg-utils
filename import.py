@@ -32,14 +32,16 @@ def parse_library_path(lib_path):
 
 
 def main():
-    if len(sys.argv) != 3:
+    print("running import with args:", sys.argv)
+
+    if len(sys.argv) != 4:
         print("Incorrect number of arguments")
         exit(1)
 
-    status_connection = status.Connection("/tmp/phorg_import.sock")
-    status_connection.start()
+    _, paths_file, library_path, sockfile = sys.argv
 
-    print("running with:", sys.argv)
+    status_connection = status.Connection(sockfile)
+    status_connection.start()
 
     if not os.path.isabs(sys.argv[2]):
         raise ValueError("Library path must be absolute")
