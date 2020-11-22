@@ -27,7 +27,7 @@ def guid(path, results):
             raise PhorgError(f"Already imported {path}")
 
         return guid
-    except (TypeError, ValueError):
+    except (AttributeError, TypeError, ValueError):
         pass
 
     guid = str(uuid.uuid4()).lower()
